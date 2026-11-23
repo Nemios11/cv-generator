@@ -8,15 +8,18 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "pdf": "tsx scripts/generate-pdf.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "convert-prototype": "tsx scripts/convert-prototype-data.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
     "i18next": "^27.2.2",
     "lucide-react": "^1.76.0",
+    "oidc-client-ts": "^3.5.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-i18next": "^18.0.3"
+    "react-i18next": "^18.0.3",
+    "react-oidc-context": "^3.3.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",

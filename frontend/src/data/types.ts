@@ -3,6 +3,11 @@ export type Localized = { it: string; en: string };
 
 export type Lang = keyof Localized;
 
+/*
+ * View model rendered by CvView. It is derived either from the fictional sample
+ * data (demo) or from the user's profile returned by the API (see api/toCvData).
+ */
+
 export interface Profile {
   name: string;
   title: Localized;
@@ -52,10 +57,28 @@ export interface Education {
   year: Localized;
 }
 
+export interface Certification {
+  id: string;
+  name: Localized;
+  issuer: string;
+  /** Display string, e.g. "03/2024". */
+  issued?: string;
+}
+
+export type LanguageLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | "NATIVE";
+
+export interface LanguageSkill {
+  id: string;
+  language: Localized;
+  level: LanguageLevel;
+}
+
 export interface CvData {
   profile: Profile;
   experience: Experience[];
   projects: Project[];
   skillGroups: SkillGroup[];
   education: Education[];
+  certifications?: Certification[];
+  languages?: LanguageSkill[];
 }
