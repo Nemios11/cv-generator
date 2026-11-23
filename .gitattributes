@@ -1,0 +1,7 @@
+# Normalise line endings: shell scripts run inside Linux containers and CI.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.woff binary
+*.woff2 binary

@@ -1,0 +1,32 @@
+# --- Personal data: NEVER commit -------------------------------------------
+# Real CV data, photos, generated CVs and private-data patterns live here only.
+/local/
+*.pdf
+*.docx
+*.zip
+
+# --- IDE / OS ---------------------------------------------------------------
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Frontend ---------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+test-results/
+playwright-report/
+blob-report/
+
+# --- Backend ----------------------------------------------------------------
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# --- Environment / secrets --------------------------------------------------
+.env
+.env.*
+!.env.example
