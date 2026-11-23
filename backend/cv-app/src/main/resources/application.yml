@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: cv-generator
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Keycloak realm from compose.yaml; override with OIDC_ISSUER_URI elsewhere.
+          issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8180/realms/cv-generator}
+          # Tokens must be issued for this API (audience mapper in the realm).
+          audiences: ${OIDC_AUDIENCE:cv-api}
+
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
