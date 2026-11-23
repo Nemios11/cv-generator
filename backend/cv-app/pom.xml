@@ -15,10 +15,9 @@
     <description>Spring Boot application: REST API, security, persistence adapters.</description>
 
     <properties>
-        <!-- le tue altre proprietà già presenti (es. java.version) -->
+        <!-- The only runnable module: re-enables spring-boot:run (skipped in the parent). -->
         <spring-boot.run.skip>false</spring-boot.run.skip>
     </properties>
-
 
     <dependencies>
         <dependency>
