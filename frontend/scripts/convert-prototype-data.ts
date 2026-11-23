@@ -12,7 +12,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { ProfileDto, TextDto } from '../src/api/types';
+import type { ProfileDto, TextDto } from '../src/api/types.ts';
 
 type Localized = { it: string; en: string };
 
