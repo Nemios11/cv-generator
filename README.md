@@ -8,6 +8,8 @@ esportabili in PDF e DOCX.
 > I dati reali si inseriscono dall'applicazione (da M1) e non vanno mai salvati nei file del progetto.
 > Vedi [ADR 0004](docs/adr/0004-dati-personali-e-conformita.md).
 
+Come è costruita e come si avvia in locale: [docs/architettura.md](docs/architettura.md).
+
 ## Struttura
 
 | Cartella | Contenuto |
