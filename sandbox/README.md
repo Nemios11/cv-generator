@@ -89,3 +89,5 @@ L'agent lavora su un branch `agent/run-<id>` e apre una pull request; il merge r
   motore dei container, di proposito. Girano in CI.
 - Repository privato su GitHub Free: niente protezione dei branch, quindi il divieto di push su `main`
   è solo nelle istruzioni del job (vedi ADR 0006).
+
+Ultimo aggiornamento di prova: 2026-11-24
