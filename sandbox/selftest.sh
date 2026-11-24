@@ -72,9 +72,12 @@ if [[ -n "${GH_TOKEN:-}" ]]; then
   fi
   expiry="$(awk -F': ' 'tolower($1)=="github-authentication-token-expiration" {print $2}' "$headers" | tr -d '\r')"
   expiry="${expiry:-${GH_TOKEN_EXPIRES_AT:-}}"
+  # Compare with GitHub's clock (Date header): the VM clock can drift (WSL).
+  server_now="$(awk -F': ' 'tolower($1)=="date" {print $2}' "$headers" | tr -d '\r')"
   rm -f "$headers"
+  now_s="$(date -d "${server_now:-now}" +%s 2>/dev/null || date +%s)"
   if [[ -n "$expiry" ]]; then
-    left=$(( $(date -d "$expiry" +%s) - $(date +%s) ))
+    left=$(( $(date -d "$expiry" +%s) - now_s ))
     if (( left > 0 && left <= 3600 )); then
       pass "GitHub token expires in $((left / 60)) min ($expiry)"
     else

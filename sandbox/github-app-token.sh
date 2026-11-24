@@ -26,6 +26,10 @@ repo="${CV_AGENT_REPO:-Nemios11/cv-generator}"
 api="https://api.github.com"
 
 [[ -r "$CV_AGENT_APP_KEY" ]] || { echo "private key not readable: $CV_AGENT_APP_KEY" >&2; exit 1; }
+key_path="$CV_AGENT_APP_KEY"
+# Git for Windows: openssl is a native program and agent.sh disables MSYS path
+# conversion (MSYS_NO_PATHCONV), so hand it a Windows path.
+command -v cygpath >/dev/null 2>&1 && key_path="$(cygpath -m "$key_path")"
 
 b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 
@@ -33,7 +37,7 @@ b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 now=$(date +%s)
 header=$(printf '{"alg":"RS256","typ":"JWT"}' | b64url)
 payload=$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' $((now - 60)) $((now + 540)) "$CV_AGENT_APP_CLIENT_ID" | b64url)
-signature=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$CV_AGENT_APP_KEY" -binary | b64url)
+signature=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$key_path" -binary | b64url)
 jwt="$header.$payload.$signature"
 
 gh_api() {
