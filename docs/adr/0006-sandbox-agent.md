@@ -94,20 +94,20 @@ token. Il workflow `agent.yml` esegue l'autotest con il token reale prima di ogn
   sandbox e girano in CI.
 
 ## Conseguenze
-  - `CLAUDE_CODE_OAUTH_TOKEN` dura a lungo. Mitigazioni:
-    - entra solo nel container dell'agent e nel segreto del workflow `agent.yml`;
-    - il proxy permette di raggiungere solo `api.anthropic.com` e GitHub;
-    - va revocato subito in caso di fuga.
+- `CLAUDE_CODE_OAUTH_TOKEN` dura a lungo. Mitigazioni:
+  - entra solo nel container dell'agent e nel segreto del workflow `agent.yml`;
+  - il proxy permette di raggiungere solo `api.anthropic.com` e GitHub;
+  - va revocato subito in caso di fuga.
 
-    Il proxy filtra l'**host**, non l'account né il contenuto del tunnel TLS. Un agent manipolato
-    (prompt injection) potrebbe quindi usare credenziali dell'attaccante, scritte nelle istruzioni
-    malevole, per inviare dati verso un host consentito, per esempio un repository dell'attaccante
-    su `api.github.com` o un pacchetto su `registry.npmjs.org`. L'allowlist riduce i canali di
-    esfiltrazione ma non li chiude: per chiuderli servirebbe un proxy che ispeziona il TLS. Per
-    questo la difesa principale resta tenere nel container il minor numero possibile di segreti,
-    tutti a ambito limitato.
+  Il proxy filtra l'**host**, non l'account né il contenuto del tunnel TLS. Un agent manipolato
+  (prompt injection) potrebbe quindi usare credenziali dell'attaccante, scritte nelle istruzioni
+  malevole, per inviare dati verso un host consentito, per esempio un repository dell'attaccante
+  su `api.github.com` o un pacchetto su `registry.npmjs.org`. L'allowlist riduce i canali di
+  esfiltrazione ma non li chiude: per chiuderli servirebbe un proxy che ispeziona il TLS. Per
+  questo la difesa principale resta tenere nel container il minor numero possibile di segreti,
+  tutti a ambito limitato.
 
-    Per arrivare a credenziali brevi anche qui servirebbe una chiave API con `apiKeyHelper` o un gateway.
+  Per arrivare a credenziali brevi anche qui servirebbe una chiave API con `apiKeyHelper` o un gateway.
 - Con un repository privato su piano GitHub Free le regole di protezione dei branch non sono
   disponibili. Quindi `contents: write` permetterebbe un push su `main`. Le istruzioni del job lo
   vietano e ogni modifica passa da una pull request, ma il vincolo tecnico richiederebbe GitHub Pro
