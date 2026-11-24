@@ -39,6 +39,7 @@ Keycloak (identity provider) e PostgreSQL sono servizi esterni, avviati in local
 | `infra/` | Configurazione di Keycloak (realm) e Postgres (script di init) |
 | `compose.yaml` | Stack locale: Postgres + Keycloak |
 | `scripts/` | Controllo anti-dati personali usato da hook e CI |
+| `sandbox/` | Sandbox dei job degli agent ([guida](../sandbox/README.md), [ADR 0006](adr/0006-sandbox-agent.md)) |
 | `local/` | **Esclusa da git:** dati personali reali, solo sulla propria macchina |
 
 ---
@@ -275,6 +276,12 @@ cd frontend && npm run test:e2e       # build + test Playwright (il login e2e ri
 bash scripts/check-private-data.sh    # controllo anti-dati personali sui file in staging
 ```
 I test d'integrazione (Testcontainers) e il test di login end-to-end girano sempre in CI, nel job `stack`.
+
+### Agent in sandbox
+I job degli agent non girano sull'host ma in un container Podman (in CI Docker) collegato solo a una
+rete interna; l'unica uscita è un proxy con allowlist. Il token GitHub dura un'ora e vale solo per
+questo repository. Dettagli in [sandbox/README.md](../sandbox/README.md) e nell'[ADR 0006](adr/0006-sandbox-agent.md).
+Nella sandbox `./mvnw verify` salta i test Testcontainers, perché l'agent non ha accesso al motore dei container.
 
 ---
 

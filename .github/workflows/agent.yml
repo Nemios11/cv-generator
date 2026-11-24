@@ -1,0 +1,78 @@
+name: Agent (sandboxed)
+
+# Agent jobs run Claude Code inside the sandbox (docs/adr/0006-sandbox-agent.md):
+# container, network policy (egress allowlist), short-lived token scoped to this
+# repository, no production credentials. Started only by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Task for the agent: it works on a new branch and opens a PR (never merges)"
+        required: true
+        type: string
+
+# Nothing by default; the job below asks only for what it needs.
+permissions: {}
+
+concurrency:
+  group: agent
+  cancel-in-progress: false
+
+jobs:
+  agent:
+    name: Agent job in the sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    # No `environment:` on purpose: production secrets live in protected
+    # environments and are never exposed to agent jobs (checked by
+    # sandbox/check-agent-workflow.sh).
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Short-lived GitHub token (1 h, this repository only)
+        id: token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.CV_AGENT_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CV_AGENT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Commit identity of the App bot
+        id: bot
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          SLUG: ${{ steps.token.outputs.app-slug }}
+        run: |
+          id="$(gh api "/users/${SLUG}%5Bbot%5D" --jq .id)"
+          echo "name=${SLUG}[bot]" >> "$GITHUB_OUTPUT"
+          echo "email=${id}+${SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_OUTPUT"
+
+      - name: Sandbox self-test (isolation, network policy, token scope)
+        env:
+          CONTAINER_ENGINE: docker
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: bash sandbox/agent.sh --build --selftest
+
+      - name: Agent job
+        env:
+          CONTAINER_ENGINE: docker
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GIT_AUTHOR_NAME: ${{ steps.bot.outputs.name }}
+          GIT_AUTHOR_EMAIL: ${{ steps.bot.outputs.email }}
+          GIT_COMMITTER_NAME: ${{ steps.bot.outputs.name }}
+          GIT_COMMITTER_EMAIL: ${{ steps.bot.outputs.email }}
+          TASK: ${{ inputs.task }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          branch="agent/run-${RUN_ID}"
+          prompt="$(printf '%s\n\n' \
+            "You are an agent job of the cv-generator repository, running in a sandbox." \
+            "Task: ${TASK}" \
+            "Rules: create and work on the branch ${branch}; follow README.md and docs/; run bash scripts/check-private-data.sh and the relevant tests before committing; push the branch and open a pull request against main with gh. Never merge, never push to main, never touch .github/workflows.")"
+          bash sandbox/agent.sh -- -p "$prompt" --permission-mode bypassPermissions --max-turns 60
