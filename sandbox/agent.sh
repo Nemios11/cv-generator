@@ -49,7 +49,7 @@ image_exists() { "$engine" image inspect "$1" >/dev/null 2>&1; }
 
 # 1. Images (built from this repository, no credentials inside).
 if ((build)) || ! image_exists "$image_proxy"; then
-  "$engine" build -t "$image_proxy" "$host_path/sandbox/proxy"
+  "$engine" build -t "$image_proxy" -f "$host_path/sandbox/proxy/Containerfile" "$host_path/sandbox/proxy"
 fi
 if ((build)) || ! image_exists "$image_agent"; then
   "$engine" build -t "$image_agent" -f "$host_path/sandbox/Containerfile" "$host_path/sandbox"
