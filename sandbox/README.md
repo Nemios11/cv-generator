@@ -32,15 +32,32 @@ produzione. Le motivazioni sono in [ADR 0006](../docs/adr/0006-sandbox-agent.md)
 - Git Bash, che c'è già con Git per Windows.
 
 ## Uso
-```bash
-bash sandbox/agent.sh --selftest --no-github   # verifica isolamento e rete, senza token
-bash sandbox/agent.sh --selftest               # verifica anche il token GitHub
-bash sandbox/agent.sh                          # sessione interattiva di Claude Code
-bash sandbox/agent.sh -- -p "compito"          # job non interattivo
-bash sandbox/agent.sh --ref <branch> -- ...    # parte da un branch diverso da main
-bash sandbox/agent.sh --shell                  # shell nella sandbox
-bash sandbox/agent.sh --build ...              # ricostruisce le immagini
 ```
+bash sandbox/agent.sh [opzioni] -- <comando> [argomenti...]
+```
+Tutto quello che segue `--` è il comando eseguito nel container, **esattamente come è scritto**: lo
+script non aggiunge niente. Prima di `--` vanno solo le opzioni dello script.
+
+```bash
+bash sandbox/agent.sh --selftest --no-github                   # verifica isolamento e rete, senza token
+bash sandbox/agent.sh --selftest                               # verifica anche il token GitHub
+bash sandbox/agent.sh -- claude                                # sessione interattiva di Claude Code
+bash sandbox/agent.sh -- claude -p "compito" --max-turns 20    # job non interattivo
+bash sandbox/agent.sh --ref <branch> -- claude -p "compito"    # parte da un branch diverso da main
+bash sandbox/agent.sh -- bash                                  # shell nella sandbox
+bash sandbox/agent.sh --no-github -- bash -c "ls -la"          # un comando, senza token GitHub
+bash sandbox/agent.sh --build -- ...                           # ricostruisce prima le immagini
+```
+
+| Opzione | Effetto |
+|---|---|
+| `--ref <branch>` | Branch da cui parte il clone (default `main`) |
+| `--no-github` | Nessun token GitHub; il repository del PC è montato in sola lettura |
+| `--build` | Ricostruisce le immagini prima di partire |
+| `--selftest` | Esegue l'autotest al posto di un comando |
+
+Il token di Claude entra nel container solo quando il comando è `claude`: una shell o l'autotest non
+lo ricevono.
 Senza `--no-github` lo script genera un token nuovo a ogni avvio e il container **clona il repository
 da GitHub** in un volume che viene eliminato a fine esecuzione. Il repository del PC non viene montato:
 l'agent non può toccarne `.git`, gli hook, i branch o `local/`, e i suoi commit sono a nome del bot
