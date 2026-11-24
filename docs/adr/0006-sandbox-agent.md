@@ -85,8 +85,9 @@ Il clone in un volume usa e getta risolve i tre problemi e rende superflua la co
   - non dichiara nessun `environment`, quindi quei segreti non gli sono mai accessibili;
   - parte solo a mano (`workflow_dispatch`), mai da eventi esterni come `pull_request_target`;
   - ha permessi di default vuoti (`permissions: {}`).
-- Nel container entrano solo le variabili passate esplicitamente da `agent.sh`: i due token, la
-  loro scadenza e l'identità dei commit.
+- Nel container entrano solo le variabili passate esplicitamente da `agent.sh`: il token GitHub e
+  la sua scadenza, l'identità dei commit e il token di Claude, quest'ultimo solo quando il comando
+  eseguito è `claude`.
 
 ### Verifiche automatiche
 | Parte del requisito | Verifica |

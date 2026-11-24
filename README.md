@@ -64,7 +64,7 @@ di un'ora limitati a questo repository e nessuna credenziale di produzione ([ADR
 
 ```bash
 bash sandbox/agent.sh --selftest --no-github   # verifica isolamento e policy di rete
-bash sandbox/agent.sh                          # Claude Code nella sandbox
+bash sandbox/agent.sh -- claude                # Claude Code nella sandbox
 ```
 Configurazione della GitHub App e del workflow di CI in [sandbox/README.md](sandbox/README.md).
 

@@ -75,4 +75,4 @@ jobs:
             "You are an agent job of the cv-generator repository, running in a sandbox." \
             "Task: ${TASK}" \
             "Rules: create and work on the branch ${branch}; follow README.md and docs/; run bash scripts/check-private-data.sh and the relevant tests before committing; push the branch and open a pull request against main with gh. Never merge, never push to main, never touch .github/workflows.")"
-          bash sandbox/agent.sh --ref "$GITHUB_REF_NAME" -- -p "$prompt" --permission-mode bypassPermissions --max-turns 60
+          bash sandbox/agent.sh --ref "$GITHUB_REF_NAME" -- claude -p "$prompt" --permission-mode bypassPermissions --max-turns 60
