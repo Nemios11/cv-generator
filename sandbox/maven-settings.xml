@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Maven inside the agent sandbox: Maven ignores HTTPS_PROXY, so the egress
+     proxy is declared here. Only Maven Central is reachable (allowlist). -->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
+  <!-- Java derives user.home from the passwd entry, not from $HOME. -->
+  <localRepository>/home/agent/.m2/repository</localRepository>
+  <proxies>
+    <proxy>
+      <id>sandbox-egress</id>
+      <active>true</active>
+      <protocol>https</protocol>
+      <host>cv-sandbox-proxy</host>
+      <port>8888</port>
+      <nonProxyHosts>localhost|127.0.0.1</nonProxyHosts>
+    </proxy>
+  </proxies>
+</settings>

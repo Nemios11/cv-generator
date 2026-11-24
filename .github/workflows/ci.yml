@@ -54,13 +54,30 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # Separate step so that type/build errors are visible in the log
+      # (Playwright's webServer hides the build output).
+      - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
         env:
           CI: "true"
 
+  sandbox:
+    name: Agent sandbox (policy + self-test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Agent workflow policy (permissions, secrets, no environment)
+        run: bash sandbox/check-agent-workflow.sh
+      - name: Self-test (isolation, network policy, no credentials)
+        env:
+          CONTAINER_ENGINE: docker
+        run: bash sandbox/agent.sh --build --selftest --no-github
+
   stack:
-    name: Local stack smoke test (compose + /api/me)
+    name: Full stack (compose + API + login e2e)
     runs-on: ubuntu-latest
     needs: backend
     steps:
@@ -69,6 +86,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - uses: actions/download-artifact@v8
         with:
           name: backend-jar
@@ -85,10 +107,22 @@ jobs:
             sleep 2
           done
           cat api.log; exit 1
-      - name: /api/me rejects anonymous and invalid tokens
+      - name: The API rejects anonymous and invalid tokens
         run: |
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/me)" = 401
-          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer not-a-token' http://localhost:8080/api/me)" = 401
+          for path in /api/me /api/profile; do
+            test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080$path)" = 401
+            test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer not-a-token' http://localhost:8080$path)" = 401
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/v3/api-docs)" = 200
+      - name: Login e2e (PKCE via Keycloak, profile CRUD through the API)
+        working-directory: frontend
+        env:
+          CI: "true"
+          E2E_AUTH: "1"
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test tests/auth.spec.ts
       - name: Logs on failure
         if: failure()
         run: |

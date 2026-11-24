@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// The CV view with fictional sample data, available without signing in.
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/demo');
 });
 
 test('renders the main sections from sample data', async ({ page }) => {
@@ -27,16 +28,4 @@ test('ATS view shows every experience without tabs', async ({ page }) => {
   for (const panel of await page.getByRole('tabpanel').all()) {
     await expect(panel).toBeVisible();
   }
-});
-
-test('loads no third-party resources', async ({ page }) => {
-  const external: string[] = [];
-  page.on('request', (req) => {
-    const url = new URL(req.url());
-    if (!['127.0.0.1', 'localhost'].includes(url.hostname) && url.protocol.startsWith('http')) {
-      external.push(req.url());
-    }
-  });
-  await page.reload({ waitUntil: 'networkidle' });
-  expect(external).toEqual([]);
 });

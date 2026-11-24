@@ -1,6 +1,16 @@
 spring:
   application:
     name: cv-generator
+  datasource:
+    # Defaults match compose.yaml (local development only); override via environment.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/cvgenerator}
+    username: ${DB_USER:cvgenerator}
+    password: ${DB_PASSWORD:cvgenerator-dev-only}
+  flyway:
+    locations: classpath:db/migration
+  mvc:
+    problemdetails:
+      enabled: true
   security:
     oauth2:
       resourceserver:
@@ -15,6 +25,16 @@ server:
   error:
     include-message: never
     include-stacktrace: never
+
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:true}
+    oauth:
+      client-id: cv-frontend
+      use-pkce-with-authorization-code-grant: true
+      scopes: openid
 
 management:
   endpoints:

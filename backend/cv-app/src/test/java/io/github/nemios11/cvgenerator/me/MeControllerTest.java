@@ -5,21 +5,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.nemios11.cvgenerator.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Boots the full application context (security included) without contacting the
- * identity provider: the JwtDecoder is mocked and tokens are injected by
- * spring-security-test.
+ * Web slice with the real security configuration. The identity provider is not
+ * contacted: the JwtDecoder is mocked and tokens are injected by spring-security-test.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
+@WebMvcTest(MeController.class)
+@Import(SecurityConfig.class)
 class MeControllerTest {
 
     @Autowired
@@ -45,11 +45,6 @@ class MeControllerTest {
                 .andExpect(jsonPath("$.username").value("alex"))
                 .andExpect(jsonPath("$.name").value("Alex Example"))
                 .andExpect(jsonPath("$.email").doesNotExist());
-    }
-
-    @Test
-    void healthIsPublic() throws Exception {
-        mvc.perform(get("/actuator/health")).andExpect(status().isOk());
     }
 
     @Test

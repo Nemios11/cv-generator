@@ -17,6 +17,7 @@ Come è costruita e come si avvia in locale: [docs/architettura.md](docs/archite
 | `frontend/` | React 19 + TypeScript + Vite (prototipo evoluto) |
 | `backend/` | Maven multi-modulo, Java 25, Spring Boot 4.2 (`cv-domain`, `cv-app`) |
 | `infra/` | Postgres e Keycloak per lo sviluppo locale |
+| `sandbox/` | Sandbox dei job degli agent: container, policy di rete, token brevi ([guida](sandbox/README.md)) |
 | `docs/adr/` | Decisioni architetturali |
 | `local/` | **Esclusa da git:** dati personali e pattern privati, solo sulla propria macchina |
 
@@ -54,6 +55,18 @@ bash scripts/check-private-data.sh                        # controllo dati perso
 
 La CI (`.github/workflows/ci.yml`) esegue tutti questi controlli più uno smoke test dello stack:
 avvia Compose, verifica Keycloak e controlla che `/api/me` rifiuti le richieste senza token valido.
+Il job `sandbox` verifica la policy del workflow degli agent ed esegue l'autotest della sandbox.
+
+## Agent in sandbox
+
+I job degli agent (Claude Code) girano in un container isolato, con allowlist di rete, token GitHub
+di un'ora limitati a questo repository e nessuna credenziale di produzione ([ADR 0006](docs/adr/0006-sandbox-agent.md)).
+
+```bash
+bash sandbox/agent.sh --selftest --no-github   # verifica isolamento e policy di rete
+bash sandbox/agent.sh                          # Claude Code nella sandbox
+```
+Configurazione della GitHub App e del workflow di CI in [sandbox/README.md](sandbox/README.md).
 
 ## Export PDF del prototipo
 
@@ -69,7 +82,7 @@ Da M3 l'export (PDF/DOCX) passa al backend, con varianti per lingua e template.
 | # | Milestone |
 |---|---|
 | M0 | Setup repository: monorepo, Maven multi-modulo, Compose, `/api/me` protetto, CI, ADR |
-| M1 | Login PKCE nel frontend, `CareerProfile` per utente, CRUD REST + OpenAPI, import dei dati del prototipo |
+| M1 | Login PKCE nel frontend, `CareerProfile` per utente, CRUD REST + OpenAPI, import dei dati del prototipo, sandbox per i job degli agent |
 | M2 | Editor del profilo nel frontend (IT/EN, validazione) |
 | M3 | `CvVariant`, anteprima HTML, PDF e DOCX del template ATS |
 | M4 | Import da ZIP dell'export dati LinkedIn con revisione dei conflitti |

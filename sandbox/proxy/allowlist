@@ -1,0 +1,5 @@
+^api\.anthropic\.com$
+^github\.com$
+^api\.github\.com$
+^registry\.npmjs\.org$
+^repo\.maven\.apache\.org$

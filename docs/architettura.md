@@ -39,6 +39,7 @@ Keycloak (identity provider) e PostgreSQL sono servizi esterni, avviati in local
 | `infra/` | Configurazione di Keycloak (realm) e Postgres (script di init) |
 | `compose.yaml` | Stack locale: Postgres + Keycloak |
 | `scripts/` | Controllo anti-dati personali usato da hook e CI |
+| `sandbox/` | Sandbox dei job degli agent ([guida](../sandbox/README.md), [ADR 0006](adr/0006-sandbox-agent.md)) |
 | `local/` | **Esclusa da git:** dati personali reali, solo sulla propria macchina |
 
 ---
@@ -50,13 +51,32 @@ backend/
 ├── pom.xml              ← POM padre: eredita da spring-boot-starter-parent, Java 25, elenco moduli
 ├── mvnw / mvnw.cmd      ← Maven Wrapper: scarica e usa Maven 3.10.2, uguale per tutti
 ├── cv-domain/           ← modulo Java puro (regole di business), nessuna dipendenza da Spring
-│   └── UserId.java
+│   ├── UserId.java
+│   └── profile/         ← CareerProfile e voci (Experience, Project, ...), invarianti nei costruttori
 └── cv-app/              ← modulo Spring Boot, dipende da cv-domain
     ├── CvGeneratorApplication.java   ← main()
     ├── security/SecurityConfig.java  ← chi può chiamare cosa
     ├── me/MeController.java          ← GET /api/me
-    └── resources/application.yml     ← configurazione (porta, issuer Keycloak, ...)
+    ├── profile/
+    │   ├── ProfileController.java    ← GET/PUT/DELETE /api/profile (ETag / If-Match)
+    │   ├── ProfileService.java       ← casi d'uso, sempre sul profilo dell'utente autenticato
+    │   ├── ProfileStore.java         ← porta di persistenza
+    │   ├── JdbcProfileStore.java     ← adattatore PostgreSQL (documento JSONB)
+    │   ├── ProfileDto.java           ← formato JSON dell'API e del documento salvato
+    │   └── ProfileMapper.java        ← DTO ↔ dominio, con percorso del campo negli errori
+    ├── web/                          ← errori RFC 9457, configurazione OpenAPI
+    └── resources/
+        ├── application.yml           ← configurazione (porta, database, issuer Keycloak, ...)
+        └── db/migration/             ← migrazioni Flyway (V1__career_profile.sql, ...)
 ```
+
+Il flusso di una richiesta segue questi livelli:
+1. **Controller (web):** autentica, converte il JSON.
+2. **Service (casi d'uso):** applica le regole applicative.
+3. **Dominio:** valida le invarianti.
+4. **Store (persistenza):** salva su Postgres.
+
+Il dominio non conosce né HTTP né il database.
 
 - `./mvnw package` compila prima `cv-domain` e poi `cv-app`. Produce un **jar eseguibile**
   (`cv-app/target/cv-app-<versione>.jar`) che contiene già Tomcat: si avvia con `java -jar`.
@@ -71,14 +91,29 @@ backend/
   |---|---|
   | `OIDC_ISSUER_URI` | `http://localhost:8180/realms/cv-generator` |
   | `OIDC_AUDIENCE` | `cv-api` |
+  | `DB_URL` | `jdbc:postgresql://localhost:5432/cvgenerator` |
+  | `DB_USER` / `DB_PASSWORD` | credenziali di sviluppo di `compose.yaml` |
+  | `API_DOCS_ENABLED` | `true` (OpenAPI e Swagger UI) |
   | `PORT` | `8080` |
+
+### API
+| Metodo e percorso | Descrizione |
+|---|---|
+| `GET /api/me` | Identità dell'utente (dal token) |
+| `GET /api/profile` | Il proprio profilo (404 se non esiste); header `ETag` con la versione |
+| `PUT /api/profile` | Crea (201) o sostituisce (200) il profilo; con `If-Match` evita di sovrascrivere modifiche concorrenti (412) |
+| `DELETE /api/profile` | Elimina definitivamente il profilo |
+
+La documentazione interattiva è su http://localhost:8080/swagger-ui.html: il pulsante *Authorize*
+fa il login su Keycloak. La descrizione OpenAPI è su `/v3/api-docs`.
+Le scelte di modello e API sono in [ADR 0005](adr/0005-profilo-documento-e-api.md).
 
 ### Sicurezza
 - Il backend è un **OAuth2 Resource Server stateless**. Ogni richiesta sotto `/api` deve avere
   l'header `Authorization: Bearer <token>`. Il token deve essere firmato da Keycloak, avere l'issuer
   configurato e come audience `cv-api`.
 - Non usa sessioni né cookie, quindi non c'è esposizione a CSRF.
-- È pubblico solo `/actuator/health`; ogni altro percorso fuori da `/api` è negato.
+- Sono pubblici solo `/actuator/health` e la documentazione delle API; ogni altro percorso fuori da `/api` è negato.
 
 ---
 
@@ -119,12 +154,18 @@ frontend/
 ├── index.html           ← unica pagina HTML; carica /src/main.tsx
 ├── src/
 │   ├── main.tsx         ← punto d'ingresso: monta React nel <div id="root">, carica font, CSS e i18n
-│   ├── App.tsx          ← il componente che disegna il CV (toolbar, sezioni, footer)
-│   ├── data/types.ts    ← tipi del modello dati
-│   ├── data/sample.ts   ← dati di esempio fittizi (da M1 arriveranno dall'API)
+│   ├── App.tsx          ← percorsi: /demo (esempio, senza login) e / (login, poi il proprio profilo)
+│   ├── auth/config.ts   ← configurazione OIDC (Keycloak, PKCE)
+│   ├── Workspace.tsx    ← area riservata: profilo, import/export JSON, eliminazione
+│   ├── CvView.tsx       ← il componente che disegna il CV (toolbar, sezioni, footer)
+│   ├── api/             ← client HTTP, tipi dell'API, conversione profilo → vista
+│   ├── data/types.ts    ← tipi della vista del CV
+│   ├── data/sample.ts   ← dati di esempio fittizi (pagina /demo e test)
 │   ├── i18n/index.ts    ← testi dell'interfaccia in IT/EN
-│   └── styles.css       ← stile: portfolio, ATS, stampa
-├── vite.config.ts       ← plugin React, proxy /api → backend
+│   ├── styles.css       ← stile del CV: portfolio, ATS, stampa
+│   └── app-shell.css    ← stile di pagina iniziale e area riservata
+├── scripts/             ← export PDF del prototipo, conversione dei dati del prototipo
+├── vite.config.ts       ← plugin React, proxy /api → backend (anche in preview)
 ├── tsconfig*.json       ← opzioni del compilatore TypeScript (strict, ...)
 ├── postcss.config.js    ← pipeline CSS (Tailwind)
 └── playwright.config.ts ← configurazione dei test e2e
@@ -167,6 +208,17 @@ Si usa `npm ci` e non `npm install`: installa le versioni del lock senza modific
 
 ### Avvio quotidiano
 
+**Keycloak e Postgres** (terminale 0, da M1 sempre necessari: il backend si avvia solo con il database):
+```bash
+docker compose up -d --wait             # oppure: podman compose up -d
+```
+- Console di Keycloak: http://localhost:8180/admin (`admin` / `admin-dev-only`).
+- Utente di sviluppo: `demo` / `demo-local-only-password`. Dalla pagina di login ci si può anche registrare.
+- Per cambiare le credenziali predefinite copiare `.env.example` in `.env`.
+- Il realm viene importato **solo al primo avvio**. Dopo una modifica a
+  `infra/keycloak/realm-cv-generator.json` va ricreato lo stack con `docker compose down -v`,
+  che cancella anche i dati locali.
+
 **Backend** (terminale 1):
 ```powershell
 cd backend
@@ -181,16 +233,20 @@ Il backend è pronto quando compare `Started CvGeneratorApplication`, su http://
 cd frontend
 npm run dev                             # http://localhost:5173
 ```
+- http://localhost:5173 mostra la pagina iniziale: *Accedi* porta al login su Keycloak.
+- http://localhost:5173/demo mostra il CV con i dati di esempio, senza login.
 
-**Keycloak e Postgres** (opzionale finché il frontend non ha il login, cioè fino a M1):
+Prima va avviato lo stack (Postgres), poi il backend. Il frontend si può avviare in qualsiasi momento.
+
+### Importare i dati del prototipo
+I dati reali del prototipo restano in `local/prototype-data/`, cartella esclusa da git.
+Per caricarli nel proprio profilo:
 ```bash
-docker compose up -d --wait             # oppure: podman compose up -d
+cd frontend
+npm run convert-prototype        # scrive ../local/profile-import.json (stampa solo conteggi)
 ```
-- Console di Keycloak: http://localhost:8180/admin (`admin` / `admin-dev-only`).
-- Utente di sviluppo: `demo` / `demo-local-only-password`.
-- Per cambiare le credenziali predefinite copiare `.env.example` in `.env`.
-
-I processi sono indipendenti e si possono avviare in qualsiasi ordine.
+Poi, nell'app, dopo il login: **Importa JSON** → scegliere `local/profile-import.json`.
+Con **Esporta JSON** si scarica il profilo, con **Elimina profilo** lo si cancella.
 
 ### Verifiche rapide
 ```bash
@@ -205,6 +261,8 @@ Per ottenere un token di prova senza frontend:
    curl -H "Authorization: Bearer <token>" http://localhost:8080/api/me
    ```
 
+In alternativa si può usare Swagger UI (http://localhost:8080/swagger-ui.html → *Authorize*).
+
 ### Da IntelliJ IDEA
 - **Backend:** aprire la cartella radice e importare `backend/pom.xml` come progetto Maven.
   Impostare il JDK 25 in *Project Structure → SDK* ed eseguire `CvGeneratorApplication`.
@@ -213,14 +271,21 @@ Per ottenere un token di prova senza frontend:
 
 ### Test
 ```bash
-cd backend  && ./mvnw verify          # unit test e test di sicurezza delle API
-cd frontend && npm run test:e2e       # build + test Playwright
+cd backend  && ./mvnw verify          # dominio, API e sicurezza; integrazione su Postgres se c'è Docker/Podman
+cd frontend && npm run test:e2e       # build + test Playwright (il login e2e richiede E2E_AUTH=1 e lo stack)
 bash scripts/check-private-data.sh    # controllo anti-dati personali sui file in staging
 ```
+I test d'integrazione (Testcontainers) e il test di login end-to-end girano sempre in CI, nel job `stack`.
+
+### Agent in sandbox
+I job degli agent non girano sull'host ma in un container Podman (in CI Docker) collegato solo a una
+rete interna; l'unica uscita è un proxy con allowlist. Il token GitHub dura un'ora e vale solo per
+questo repository. Dettagli in [sandbox/README.md](../sandbox/README.md) e nell'[ADR 0006](adr/0006-sandbox-agent.md).
+Nella sandbox `./mvnw verify` salta i test Testcontainers, perché l'agent non ha accesso al motore dei container.
 
 ---
 
-## Flusso di autenticazione (da M1)
+## Flusso di autenticazione
 
 1. Il frontend reindirizza a Keycloak, dove l'utente inserisce le credenziali.
    L'applicazione non vede né conserva mai la password.
