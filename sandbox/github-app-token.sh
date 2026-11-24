@@ -13,7 +13,9 @@
 #   CV_AGENT_APP_KEY         path to the App private key (.pem)
 #   CV_AGENT_REPO            owner/name, default Nemios11/cv-generator
 #
-# Output: the token on stdout; its expiry on stderr.
+# Output: the token on stdout; its expiry on stderr. Optional files:
+#   CV_AGENT_EXPIRY_FILE     receives the expiry
+#   CV_AGENT_IDENTITY_FILE   receives the commit identity of the App bot
 set -euo pipefail
 
 config="${CV_AGENT_CONFIG:-$HOME/.config/cv-generator-agent/app.env}"
@@ -60,4 +62,13 @@ expires_at=$(json_field expires_at <<<"$response")
 
 echo "GitHub token for $repo (contents:write, pull_requests:write) expires at $expires_at" >&2
 [[ -n "${CV_AGENT_EXPIRY_FILE:-}" ]] && printf '%s' "$expires_at" > "$CV_AGENT_EXPIRY_FILE"
+
+# 4. Commit identity of the App bot (name and email on two lines), so that the
+#    agent's commits are attributed to the bot and not to a person.
+if [[ -n "${CV_AGENT_IDENTITY_FILE:-}" ]]; then
+  slug=$(gh_api "$api/app" | tr -d '\n' | json_field slug)
+  bot_id=$(curl -fsS -H "Authorization: Bearer $token" "$api/users/${slug}%5Bbot%5D" | tr -d '\n' | json_field id)
+  [[ -n "$slug" && -n "$bot_id" ]] || { echo "cannot read the App bot identity" >&2; exit 1; }
+  printf '%s[bot]\n%s+%s[bot]@users.noreply.github.com\n' "$slug" "$bot_id" "$slug" > "$CV_AGENT_IDENTITY_FILE"
+fi
 printf '%s\n' "$token"

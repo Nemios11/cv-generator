@@ -19,11 +19,32 @@ capeff="$(awk '/^CapEff:/ {print $2}' /proc/self/status)"
 [[ "$capeff" =~ ^0+$ ]] && pass "no Linux capabilities (CapEff=$capeff)" || fail "capabilities present (CapEff=$capeff)"
 [[ "$(awk '/^NoNewPrivs:/ {print $2}' /proc/self/status)" == 1 ]] && pass "no-new-privileges" || fail "privilege escalation allowed"
 if touch /usr/.sandbox-probe 2>/dev/null; then rm -f /usr/.sandbox-probe; fail "root filesystem is writable"; else pass "read-only root filesystem"; fi
-if [[ -d /workspace/local ]] && [[ -z "$(ls -A /workspace/local 2>/dev/null)" ]] && ! touch /workspace/local/.probe 2>/dev/null; then
-  pass "local/ (personal data) is masked: empty and read-only"
-else
-  fail "local/ is visible or writable inside the sandbox"
-fi
+case "${CV_SANDBOX_WORKSPACE:-}" in
+  clone)
+    # The workspace is a fresh clone: the host repository (.git, hooks, local/) is not mounted.
+    origin="$(git -C /workspace remote get-url origin 2>/dev/null || true)"
+    if [[ "$origin" == "https://github.com/${CV_SANDBOX_REPO:-}.git" ]] && ! grep -q ' /workspace/' /proc/self/mountinfo; then
+      pass "workspace is a fresh clone of ${CV_SANDBOX_REPO} (host repository not mounted)"
+    else
+      fail "workspace is not a clean clone (origin='${origin}' or extra mounts under /workspace)"
+    fi
+    [[ ! -e /workspace/local ]] && pass "local/ (personal data) is not in the workspace" || fail "local/ is present in the workspace"
+    if [[ "${GIT_AUTHOR_EMAIL:-}" == *"[bot]@users.noreply.github.com" ]]; then
+      pass "commits are attributed to the App bot (${GIT_AUTHOR_NAME:-})"
+    else
+      fail "commit identity is not the App bot (${GIT_AUTHOR_EMAIL:-unset})"
+    fi
+    ;;
+  readonly)
+    if touch /workspace/.sandbox-probe 2>/dev/null; then rm -f /workspace/.sandbox-probe; fail "host repository is writable"; else pass "host repository mounted read-only"; fi
+    if [[ -d /workspace/local ]] && [[ -z "$(ls -A /workspace/local 2>/dev/null)" ]] && ! touch /workspace/local/.probe 2>/dev/null; then
+      pass "local/ (personal data) is masked: empty and read-only"
+    else
+      fail "local/ is visible or writable inside the sandbox"
+    fi
+    ;;
+  *) fail "unknown workspace mode (CV_SANDBOX_WORKSPACE='${CV_SANDBOX_WORKSPACE:-}')" ;;
+esac
 sockets=""
 for sock in /var/run/docker.sock /run/docker.sock /run/podman/podman.sock; do
   [[ -e "$sock" ]] && sockets+="$sock "

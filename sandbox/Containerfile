@@ -28,14 +28,16 @@ RUN set -eu; cd /tmp; \
 RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && npm cache clean --force
 
-# The workspace is mounted from the host (different owner); git pushes over
-# HTTPS with the short-lived GH_TOKEN through gh, never with stored credentials.
+# The workspace is a fresh clone (or, without GitHub, the host repository
+# mounted read-only, with another owner); git clones and pushes over HTTPS with
+# the short-lived GH_TOKEN through gh, never with stored credentials.
 RUN git config --system safe.directory /workspace \
  && git config --system credential.https://github.com.helper '' \
- && git config --system --add credential.https://github.com.helper '!gh auth git-credential'
+ && git config --system --add credential.https://github.com.helper '!gh auth git-credential' \
+ && mkdir -p /workspace && chmod 1777 /workspace
 
 COPY maven-settings.xml /etc/sandbox/maven-settings.xml
-COPY selftest.sh /opt/sandbox/selftest.sh
+COPY entry.sh selftest.sh /opt/sandbox/
 
 # Every outbound connection goes through the egress proxy (network policy).
 ENV HTTPS_PROXY=http://cv-sandbox-proxy:8888 \
@@ -55,4 +57,5 @@ ENV HTTPS_PROXY=http://cv-sandbox-proxy:8888 \
 
 USER node
 WORKDIR /workspace
+ENTRYPOINT ["bash", "/opt/sandbox/entry.sh"]
 CMD ["claude"]

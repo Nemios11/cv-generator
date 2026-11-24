@@ -11,14 +11,15 @@ produzione. Le motivazioni sono in [ADR 0006](../docs/adr/0006-sandbox-agent.md)
  (chiave privata: resta qui)     │               ┌──────────────────────┐    ┌──────────────────┐
                                  └─ agent.sh ──▶ │ cv-sandbox-agent     │──▶ │ cv-sandbox-proxy │──▶ allowlist:
                                                  │ non root, read-only  │    │ tinyproxy        │    api.anthropic.com
-                                                 │ /workspace = repo    │    │ default deny     │    github.com, api.github.com
-                                                 │ local/ = vuota       │    └──────────────────┘    registry.npmjs.org
+                                                 │ /workspace = clone   │    │ default deny     │    github.com, api.github.com
+                                                 │ da GitHub (volume)   │    └──────────────────┘    registry.npmjs.org
                                                  └──────────────────────┘     rete cv-sandbox-egress  repo.maven.apache.org
 ```
 
 | File | Ruolo |
 |---|---|
 | `agent.sh` | Avvia proxy e container dell'agent; genera il token GitHub |
+| `entry.sh` | Punto di ingresso del container: clona il repository da GitHub nel workspace |
 | `Containerfile` | Immagine dell'agent: Java 25, Node 22, git, gh, Claude Code |
 | `proxy/` | Proxy di egress con allowlist |
 | `github-app-token.sh` | Token GitHub App di 1 ora, solo per questo repository (gira sull'host) |
@@ -36,10 +37,15 @@ bash sandbox/agent.sh --selftest --no-github   # verifica isolamento e rete, sen
 bash sandbox/agent.sh --selftest               # verifica anche il token GitHub
 bash sandbox/agent.sh                          # sessione interattiva di Claude Code
 bash sandbox/agent.sh -- -p "compito"          # job non interattivo
+bash sandbox/agent.sh --ref <branch> -- ...    # parte da un branch diverso da main
 bash sandbox/agent.sh --shell                  # shell nella sandbox
 bash sandbox/agent.sh --build ...              # ricostruisce le immagini
 ```
-Senza `--no-github` lo script genera un token nuovo a ogni avvio.
+Senza `--no-github` lo script genera un token nuovo a ogni avvio e il container **clona il repository
+da GitHub** in un volume che viene eliminato a fine esecuzione. Il repository del PC non viene montato:
+l'agent non può toccarne `.git`, gli hook, i branch o `local/`, e i suoi commit sono a nome del bot
+della GitHub App. L'agent vede solo ciò che è già su GitHub. Con `--no-github` il repository del PC è
+montato in sola lettura, con `local/` nascosta.
 
 ## Configurazione (una volta)
 

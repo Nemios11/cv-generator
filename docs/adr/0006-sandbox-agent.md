@@ -30,10 +30,27 @@ Vincoli del progetto che restano validi:
   - filesystem radice in sola lettura, home e `/tmp` su tmpfs;
   - limiti di memoria, CPU e processi;
   - nessun socket del motore dei container (l'agent non può avviare altri container).
-- Si monta **solo il repository**. La cartella `local/` è coperta da un tmpfs vuoto in sola lettura.
-  Con Podman serve l'opzione `notmpcopyup`: senza, Podman copia nel tmpfs il contenuto della cartella
-  coperta, cioè proprio i dati personali.
+- **Il repository dell'host non viene montato.** Il container clona il repository da GitHub, con il
+  token breve, in un volume anonimo che viene eliminato insieme al container (`--ref` sceglie il
+  branch, di default `main`). La cartella `local/` è ignorata da git, quindi nel clone non esiste.
+- Solo senza token GitHub (`--no-github`, usato per l'autotest in CI) si monta il repository dell'host,
+  **in sola lettura**, con `local/` coperta da un tmpfs vuoto in sola lettura. Con Podman serve
+  l'opzione `notmpcopyup`: senza, Podman copia nel tmpfs il contenuto della cartella coperta, cioè
+  proprio i dati personali.
 - Non si montano `~/.ssh`, `~/.gitconfig`, le credenziali di gh, di Claude o del motore dei container.
+- I commit dell'agent hanno l'identità del bot della GitHub App (`<app>[bot]`), in locale come in CI.
+
+#### Perché il clone: cosa ha mostrato la prima prova reale
+Nella prima versione il repository dell'host era montato in lettura e scrittura. La prima prova con
+token reali ha funzionato, ma ha mostrato tre problemi che l'autotest non controllava:
+1. l'agent aveva cambiato il branch della copia di lavoro dell'utente e scritto in `.git/config`.
+   Con un repository montato in scrittura un agent manipolato può modificare gli hook
+   (`core.hooksPath=.githooks`) o la configurazione git, che poi **vengono eseguiti sull'host** al
+   commit successivo dell'utente: un'uscita dalla sandbox;
+2. i commit risultavano dell'utente, perché valeva la configurazione git del repository montato;
+3. l'agent partiva dal branch su cui si trovava l'utente, non da `main`.
+
+Il clone in un volume usa e getta risolve i tre problemi e rende superflua la copertura di `local/`.
 
 ### 2. Policy di rete
 - L'agent è collegato solo alla rete `cv-sandbox-internal`, creata con `--internal`: non ha nessuna
@@ -74,7 +91,7 @@ Vincoli del progetto che restano validi:
 ### Verifiche automatiche
 | Parte del requisito | Verifica |
 |---|---|
-| Container isolato | `sandbox/selftest.sh` §1: utente non root, nessuna capability, `no-new-privileges`, radice in sola lettura, `local/` vuota, nessun socket |
+| Container isolato | `sandbox/selftest.sh` §1: utente non root, nessuna capability, `no-new-privileges`, radice in sola lettura, nessun socket; con token: workspace clonato senza mount dell'host, `local/` assente, commit a nome del bot; senza token: repository in sola lettura, `local/` vuota |
 | Policy di rete | §2: uscita diretta bloccata per nome e per IP; host in allowlist raggiungibile; `example.com` rifiutato; porte diverse da 443 rifiutate |
 | Token brevi e limitati | §3: il token GitHub è d'installazione, vale per un solo repository, scade entro 60 minuti e non agisce come utente |
 | Niente produzione | §4: nessuna variabile di produzione o cloud, nessun file di credenziali; `sandbox/check-agent-workflow.sh` controlla permessi, segreti ed environment del workflow |
@@ -112,6 +129,8 @@ token. Il workflow `agent.yml` esegue l'autotest con il token reale prima di ogn
   disponibili. Quindi `contents: write` permetterebbe un push su `main`. Le istruzioni del job lo
   vietano e ogni modifica passa da una pull request, ma il vincolo tecnico richiederebbe GitHub Pro
   o un repository pubblico.
-- Le cache di Maven e npm (artefatti pubblici) persistono in volumi Podman in locale; in CI sono su tmpfs.
+- L'agent vede solo ciò che è già su GitHub: le modifiche locali non ancora pushate non gli arrivano.
+  È lo stesso modello della CI.
+- Le cache di Maven e npm (artefatti pubblici) persistono in volumi Podman in locale; in CI no.
 - Nella sandbox i test d'integrazione con Testcontainers vengono saltati.
 - Aggiungere un host all'allowlist è una modifica di `sandbox/proxy/allowlist`, revisionata in una pull request.
