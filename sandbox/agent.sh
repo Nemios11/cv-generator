@@ -13,7 +13,8 @@
 # Engine: podman by default (local), CONTAINER_ENGINE=docker in CI.
 # Tokens: GH_TOKEN is minted here (1 h, one repository) unless already set
 # (in CI it comes from actions/create-github-app-token); CLAUDE_CODE_OAUTH_TOKEN
-# is read from the environment. Nothing else from the host enters the container.
+# is read from the environment or from ~/.config/cv-generator-agent/claude-token.
+# Nothing else from the host enters the container.
 set -euo pipefail
 
 engine="${CONTAINER_ENGINE:-podman}"
@@ -32,7 +33,7 @@ while (($#)); do
     --no-github) github=0 ;;
     --build) build=1 ;;
     --) shift; args=("$@"); break ;;
-    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
     *) echo "unknown option: $1 (use -- before claude arguments)" >&2; exit 2 ;;
   esac
   shift
@@ -84,10 +85,18 @@ fi
 for v in GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL; do
   [[ -n "${!v:-}" ]] && env_args+=(-e "$v")
 done
+# Claude token: from the environment, else from a file outside the repository
+# (one line, the token only). Not stored in the same file as the App settings.
+claude_token_file="${CV_AGENT_CLAUDE_TOKEN_FILE:-$HOME/.config/cv-generator-agent/claude-token}"
+if [[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" && -r "$claude_token_file" ]]; then
+  CLAUDE_CODE_OAUTH_TOKEN="$(tr -d '[:space:]' < "$claude_token_file")"
+  export CLAUDE_CODE_OAUTH_TOKEN
+fi
 if [[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]]; then
   env_args+=(-e CLAUDE_CODE_OAUTH_TOKEN)
 elif [[ "$mode" == claude ]]; then
-  echo "CLAUDE_CODE_OAUTH_TOKEN is not set (create it with: claude setup-token)" >&2
+  echo "CLAUDE_CODE_OAUTH_TOKEN is not set and $claude_token_file is missing" >&2
+  echo "(create the token on the host with: claude setup-token)" >&2
   exit 1
 fi
 

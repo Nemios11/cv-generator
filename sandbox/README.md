@@ -63,9 +63,18 @@ Senza `--no-github` lo script genera un token nuovo a ogni avvio.
    repository e la sua scadenza.
 
 ### 2. Token di Claude Code
-`claude setup-token` genera il token dell'abbonamento. Va impostato solo nella sessione del terminale
-(`export CLAUDE_CODE_OAUTH_TOKEN=...`), mai in un file del repository.
-È a lunga durata: in caso di fuga va revocato subito.
+`claude setup-token`, lanciato **sull'host** in un terminale separato (non nel container e non
+con `!` dentro Claude Code, altrimenti il token finisce nella conversazione), genera il token
+dell'abbonamento. `agent.sh` lo prende, in quest'ordine:
+1. dalla variabile `CLAUDE_CODE_OAUTH_TOKEN`, se è impostata;
+2. dal file `~/.config/cv-generator-agent/claude-token` (un'unica riga con il solo token), fuori dal
+   repository. Per crearlo senza che il token compaia a schermo:
+   ```bash
+   read -rs t && printf '%s' "$t" > ~/.config/cv-generator-agent/claude-token && unset t
+   ```
+
+Il file non è cifrato e su Windows è leggibile da ogni programma dell'utente: è lo stesso livello di
+rischio della chiave della GitHub App. Il token è a lunga durata: in caso di fuga va revocato subito.
 
 ### 3. CI (workflow *Agent (sandboxed)*)
 Nel repository GitHub:
