@@ -121,7 +121,7 @@ tty_args=()
   --name "cv-sandbox-agent-$$" \
   --network "$net_internal" \
   --read-only --cap-drop ALL --security-opt no-new-privileges \
-  --pids-limit 2048 --memory 3g --cpus 3 \
+  --pids-limit 2048 --memory 3g --cpus "${CV_SANDBOX_CPUS:-2}" \
   "${user_args[@]}" \
   --tmpfs /tmp:exec,mode=1777 \
   --tmpfs /home/agent:exec,mode=1777 \
