@@ -125,7 +125,11 @@ if ((github)); then
   env_args+=(-e "CV_SANDBOX_REPO=$repo" -e "CV_SANDBOX_REF=$ref" -e CV_SANDBOX_WORKSPACE=clone)
 else
   workspace_args=(-v "$host_path:/workspace:ro")
-  if [[ "$engine" == podman ]]; then
+  # Only if local/ exists (not in a CI checkout): a read-only mount cannot get
+  # a new mountpoint.
+  if [[ ! -d "$root/local" ]]; then
+    :
+  elif [[ "$engine" == podman ]]; then
     workspace_args+=(--tmpfs "/workspace/local:ro,notmpcopyup,size=64k,mode=0555")
   else
     workspace_args+=(--tmpfs "/workspace/local:ro,size=64k,mode=0555")

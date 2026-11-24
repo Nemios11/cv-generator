@@ -37,7 +37,9 @@ case "${CV_SANDBOX_WORKSPACE:-}" in
     ;;
   readonly)
     if touch /workspace/.sandbox-probe 2>/dev/null; then rm -f /workspace/.sandbox-probe; fail "host repository is writable"; else pass "host repository mounted read-only"; fi
-    if [[ -d /workspace/local ]] && [[ -z "$(ls -A /workspace/local 2>/dev/null)" ]] && ! touch /workspace/local/.probe 2>/dev/null; then
+    if [[ ! -e /workspace/local ]]; then
+      pass "local/ (personal data) is not present in the repository"
+    elif [[ -d /workspace/local ]] && [[ -z "$(ls -A /workspace/local 2>/dev/null)" ]] && ! touch /workspace/local/.probe 2>/dev/null; then
       pass "local/ (personal data) is masked: empty and read-only"
     else
       fail "local/ is visible or writable inside the sandbox"
