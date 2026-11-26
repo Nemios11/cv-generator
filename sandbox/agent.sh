@@ -15,6 +15,9 @@
 #   --ref <branch>  branch the agent starts from (default: main)
 #   --no-github     no GitHub token; the host repository is mounted read-only
 #   --build         rebuild the images
+#   --deploy <env>  give the agent the token of the deploy MCP server of <env>
+#                   (dev, staging, prod; repeatable). Without it the agent has
+#                   no deployment power at all. Servers: deploy/mcp/start.sh
 #
 # Workspace: with GitHub (the default) the container clones the repository from
 # GitHub into a volume that lives only for this run; the host repository is not
@@ -22,7 +25,7 @@
 # already set (in CI it comes from actions/create-github-app-token);
 # CLAUDE_CODE_OAUTH_TOKEN, only when the command is claude, comes from the
 # environment or from ~/.config/cv-generator-agent/claude-token.
-# Nothing else from the host enters.
+# DEPLOY_<ENV>_TOKEN only for each --deploy <env>. Nothing else from the host enters.
 # Engine: podman by default (local), CONTAINER_ENGINE=docker in CI.
 set -euo pipefail
 
@@ -35,15 +38,18 @@ net_internal="cv-sandbox-internal"
 net_egress="cv-sandbox-egress"
 proxy_name="cv-sandbox-proxy"
 
-usage() { sed -n '2,26p' "$0"; }
+usage() { sed -n '2,29p' "$0"; }
 
-selftest=0; github=1; build=0; ref="main"; cmd=()
+selftest=0; github=1; build=0; ref="main"; cmd=(); deploy_envs=()
 while (($#)); do
   case "$1" in
     --selftest) selftest=1 ;;
     --no-github) github=0 ;;
     --build) build=1 ;;
     --ref) ref="${2:?--ref needs a branch name}"; shift ;;
+    --deploy)
+      case "${2:-}" in dev|staging|prod) deploy_envs+=("$2") ;; *) echo "--deploy needs dev, staging or prod" >&2; exit 2 ;; esac
+      shift ;;
     --) shift; cmd=("$@"); break ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown option: $1 (the command goes after --, e.g. -- claude -p \"task\")" >&2; exit 2 ;;
@@ -130,6 +136,19 @@ if [[ "${cmd[0]}" == claude ]]; then
   fi
   env_args+=(-e CLAUDE_CODE_OAUTH_TOKEN)
 fi
+
+# Deploy MCP tokens: only for the environments asked with --deploy. .mcp.json
+# reads them as ${DEPLOY_<ENV>_TOKEN}; a server without its token answers 401.
+# From the environment (CI), else from the state written by deploy/mcp/start.sh.
+for e in "${deploy_envs[@]}"; do
+  var="DEPLOY_${e^^}_TOKEN"
+  if [[ -z "${!var:-}" ]]; then
+    token_file="${CV_DEPLOY_STATE_DIR:-$HOME/.config/cv-generator-deploy}/$e/mcp-token"
+    [[ -r "$token_file" ]] || { echo "no token for deploy-$e: start it with bash deploy/mcp/start.sh $e" >&2; exit 1; }
+    export "$var=$(tr -d '[:space:]' < "$token_file")"
+  fi
+  env_args+=(-e "$var")
+done
 
 # 5. Workspace.
 #  - With GitHub: an anonymous volume, removed with the container, where

@@ -81,7 +81,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CONTAINER_ENGINE: docker
-      CV_DEPLOY_SECRETS_DIR: ${{ runner.temp }}/deploy-secrets
+      # Deploy state (generated passwords, history) stays in the default
+      # ~/.config/cv-generator-deploy of the ephemeral runner. Note: the
+      # "runner" context is not available in job-level env.
     steps:
       - uses: actions/checkout@v7
         with:
@@ -95,7 +97,7 @@ jobs:
         id: build
         run: echo "version=$(bash deploy/build.sh)" >> "$GITHUB_OUTPUT"
       - name: Deploy to an ephemeral staging on the runner
-        run: bash deploy/stack.sh staging up "${{ steps.build.outputs.version }}"
+        run: bash deploy/stack.sh staging release "${{ steps.build.outputs.version }}"
       - name: Smoke test
         run: bash deploy/smoke.sh staging "${{ steps.build.outputs.version }}"
       - name: Login e2e against staging (PKCE through the entry point)
@@ -108,12 +110,30 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
           npx playwright test tests/auth.spec.ts
+      - name: Deploy MCP server (typecheck, then status through MCP from the sandbox network)
+        env:
+          CV_STATUS_WINDOW_SECONDS: "15"
+        run: |
+          (cd deploy/mcp && npm ci --no-audit --no-fund && npm run check)
+          bash deploy/mcp/start.sh staging --build
+          # The client runs where the agent would: on the internal network only.
+          DEPLOY_TOKEN="$(cat ~/.config/cv-generator-deploy/staging/mcp-token)" \
+          docker run --rm --network cv-sandbox-internal -e DEPLOY_TOKEN \
+            -e DEPLOY_URL=http://deploy-staging:8080/mcp \
+            -v "$PWD/deploy/mcp:/app:ro" -w /app docker.io/library/node:22-bookworm-slim \
+            node src/client.ts staging status | tee status.json
+          grep -q '"version":"${{ steps.build.outputs.version }}"' status.json
+          grep -q '"breached":false' status.json
       - name: Logs on failure
         if: failure()
-        run: bash deploy/stack.sh staging logs
+        run: |
+          bash deploy/stack.sh staging logs
+          docker logs cv-deploy-staging || true
       - name: Tear down
         if: always()
-        run: bash deploy/stack.sh staging destroy
+        run: |
+          bash deploy/mcp/start.sh staging --stop
+          bash deploy/stack.sh staging destroy
 
   stack:
     name: Full stack (compose + API + login e2e)

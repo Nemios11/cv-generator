@@ -37,6 +37,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- Metrics in Prometheus format (Apache-2.0), read by the deploy "status" tool.
+             Exposed only on the internal management port of deployed environments. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
 
         <!-- Persistence: PostgreSQL + Flyway migrations, plain JDBC -->
         <dependency>

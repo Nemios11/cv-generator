@@ -3,9 +3,9 @@
 #
 #   bash deploy/build.sh [<commit>]      default: HEAD
 #
-# Produces localhost/cv-generator-api:<version> and
-# localhost/cv-generator-web:<version>, where <version> is the commit SHA
-# (12 characters). The build context is the content of that commit, extracted
+# Produces the four images of a release, localhost/cv-generator-<name>:<version>
+# with <name> api (Spring Boot), web (nginx + frontend), db (Postgres + init
+# script) and idp (Keycloak + realm); <version> is the commit SHA (12 characters). The build context is the content of that commit, extracted
 # with git archive, never the working tree: uncommitted changes and
 # git-ignored files (local/, .env) cannot enter an image, and building the same
 # version twice gives the same content. An image that already exists is not
@@ -27,9 +27,9 @@ fi
 
 ctx="$(mktemp -d)"
 trap 'rm -rf "$ctx"' EXIT
-git archive "$version" backend frontend | tar -x -C "$ctx"
+git archive "$version" backend frontend infra | tar -x -C "$ctx"
 
-for component in api:backend web:frontend; do
+for component in api:backend web:frontend db:infra/postgres idp:infra/keycloak; do
   name="${component%%:*}"; dir="${component#*:}"
   image="$(image_name "$name" "$version")"
   if image_exists "$image"; then

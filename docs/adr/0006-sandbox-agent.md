@@ -63,6 +63,10 @@ Il clone in un volume usa e getta risolve i tre problemi e rende superflua la co
   - `registry.npmjs.org`, `repo.maven.apache.org` (dipendenze).
 - L'isolamento non dipende dalla collaborazione del codice: un programma che ignora `HTTPS_PROXY`
   semplicemente non esce.
+- Sulla stessa rete interna ci sono, quando sono avviati, i server MCP di deploy (`deploy-dev`,
+  `deploy-staging`, `deploy-prod`, [ADR 0007](0007-rilasci-e-ambienti.md)). L'agent li raggiunge
+  direttamente, senza proxy (`NO_PROXY`), ma ottiene risposta solo dai server di cui `agent.sh
+  --deploy` gli ha passato il token. Neanche loro hanno un'uscita verso Internet.
 - Telemetria, error reporting e aggiornamenti automatici di Claude Code sono disattivati.
 
 ### 3. Token a breve durata e con ambito limitato

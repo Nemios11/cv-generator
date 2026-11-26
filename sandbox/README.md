@@ -55,6 +55,7 @@ bash sandbox/agent.sh --build -- ...                           # ricostruisce pr
 | `--no-github` | Nessun token GitHub; il repository del PC è montato in sola lettura |
 | `--build` | Ricostruisce le immagini prima di partire |
 | `--selftest` | Esegue l'autotest al posto di un comando |
+| `--deploy <env>` | Passa il token del server MCP di deploy di quell'ambiente (`dev`, `staging`, `prod`; ripetibile). Senza, l'agent non ha nessun potere di deploy ([deploy/mcp](../deploy/mcp/README.md)) |
 
 Il token di Claude entra nel container solo quando il comando è `claude`: una shell o l'autotest non
 lo ricevono.

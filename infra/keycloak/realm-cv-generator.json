@@ -61,6 +61,32 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "cv-synthetic",
+      "name": "Synthetic traffic of deployed environments",
+      "description": "Service account used by the synthetic traffic generator (deploy/compose.yaml). The secret comes from the environment at import; the default is for local development only.",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${CV_SYNTHETIC_CLIENT_SECRET:synthetic-local-dev-only}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "audience-cv-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "cv-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "users": [

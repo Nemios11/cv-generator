@@ -40,12 +40,14 @@ COPY maven-settings.xml /etc/sandbox/maven-settings.xml
 COPY entry.sh selftest.sh /opt/sandbox/
 
 # Every outbound connection goes through the egress proxy (network policy).
+# Exceptions: the deploy MCP servers, which are on the same internal network
+# (deploy/mcp/start.sh) and are reached directly.
 ENV HTTPS_PROXY=http://cv-sandbox-proxy:8888 \
     HTTP_PROXY=http://cv-sandbox-proxy:8888 \
     https_proxy=http://cv-sandbox-proxy:8888 \
     http_proxy=http://cv-sandbox-proxy:8888 \
-    NO_PROXY=localhost,127.0.0.1 \
-    no_proxy=localhost,127.0.0.1 \
+    NO_PROXY=localhost,127.0.0.1,deploy-dev,deploy-staging,deploy-prod \
+    no_proxy=localhost,127.0.0.1,deploy-dev,deploy-staging,deploy-prod \
     MAVEN_ARGS="-s /etc/sandbox/maven-settings.xml" \
     GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
     HOME=/home/agent \

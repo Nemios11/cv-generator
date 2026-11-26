@@ -5,6 +5,8 @@ engine="${CONTAINER_ENGINE:-podman}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 deploy_dir="$root/deploy"
 environments=(dev staging prod)
+# Images of a release, all tagged with the same version.
+release_components=(api web db idp)
 
 die() { echo "deploy: $*" >&2; exit 1; }
 log() { echo "deploy: $*" >&2; }
@@ -37,6 +39,9 @@ require_env() {
   for e in "${environments[@]}"; do [[ "$1" == "$e" ]] && return 0; done
   die "unknown environment '$1' (one of: ${environments[*]})"
 }
+
+# State of an environment (secrets, history, MCP token), outside the repository.
+state_dir_of() { printf '%s/%s\n' "${CV_DEPLOY_STATE_DIR:-$HOME/.config/cv-generator-deploy}" "$1"; }
 
 # Reads one KEY=value from an environment file.
 env_value() { sed -n "s/^$2=//p" "$1" | tail -n 1; }

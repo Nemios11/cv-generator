@@ -67,10 +67,13 @@ Ogni commit diventa una versione (lo SHA) con due immagini, installabile negli a
 
 ```bash
 v=$(bash deploy/build.sh)            # immagini del commit corrente
-bash deploy/stack.sh dev up "$v"      # http://localhost:8280
+bash deploy/stack.sh dev release "$v" # http://localhost:8280
 bash deploy/smoke.sh dev "$v"
 ```
 Concetti e comandi in [deploy/README.md](deploy/README.md).
+
+L'agent rilascia, controlla e annulla i rilasci solo con i tre strumenti dei server MCP di deploy,
+uno per ambiente (`.mcp.json`, [deploy/mcp/README.md](deploy/mcp/README.md)).
 
 ## Agent in sandbox
 

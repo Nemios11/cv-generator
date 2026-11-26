@@ -1,0 +1,9 @@
+# Database image of a release: PostgreSQL plus the initialisation script that
+# creates the Keycloak database. Baked into a versioned image (deploy/build.sh)
+# instead of mounted from the checkout, so the configuration is part of the
+# version and the stack can be started from anywhere (also by the deploy MCP
+# server, which has no checkout of the host).
+FROM docker.io/library/postgres:18-alpine
+LABEL org.opencontainers.image.title="cv-generator-db" \
+      org.opencontainers.image.source="https://github.com/Nemios11/cv-generator"
+COPY init/ /docker-entrypoint-initdb.d/

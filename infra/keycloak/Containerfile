@@ -1,0 +1,7 @@
+# Identity provider image of a release: Keycloak plus the realm of the app,
+# imported at the first start on an empty database. Baked into a versioned
+# image for the same reason as infra/postgres/Containerfile.
+FROM quay.io/keycloak/keycloak:26.8.2
+LABEL org.opencontainers.image.title="cv-generator-idp" \
+      org.opencontainers.image.source="https://github.com/Nemios11/cv-generator"
+COPY realm-cv-generator.json /opt/keycloak/data/import/realm-cv-generator.json

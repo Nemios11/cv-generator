@@ -1,0 +1,42 @@
+# Image of the deploy MCP servers (one container per environment, started by
+# deploy/mcp/start.sh). Build context: the deploy/ directory.
+#
+# Contents: Node with the MCP server, the deploy scripts (stack.sh and the
+# Compose file), and the Docker CLI with the Compose plugin to drive the
+# container engine through its socket (Podman's Docker-compatible API locally,
+# Docker in CI). The socket is the real deployment credential: it stays in this
+# container, the agent only reaches the HTTP endpoint.
+FROM docker.io/library/node:22-bookworm-slim
+
+# Static Docker CLI and Compose plugin, pinned and verified by checksum.
+ARG DOCKER_VERSION=29.10.1
+ARG DOCKER_SHA256=061642059fa7f2ed9b2f04a327a951cff4249585cf04b2661c2a6539197c9962
+ARG COMPOSE_VERSION=5.8.0
+ARG COMPOSE_SHA256=b8840f5008c447f41fce0a57ae3adeab42c89b1eb6e6012524bcabbfb4ffbaf6
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl openssl \
+ && curl -fsSL -o /tmp/docker.tgz "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz" \
+ && echo "${DOCKER_SHA256}  /tmp/docker.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/docker.tgz -C /usr/local/bin --strip-components=1 docker/docker \
+ && mkdir -p /usr/local/lib/docker/cli-plugins \
+ && curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
+      "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-linux-x86_64" \
+ && echo "${COMPOSE_SHA256}  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c - \
+ && chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose \
+ && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/* /tmp/docker.tgz
+
+WORKDIR /opt/cv/deploy/mcp
+COPY mcp/package.json mcp/package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
+COPY mcp/src ./src
+COPY lib.sh stack.sh compose.yaml /opt/cv/deploy/
+COPY env /opt/cv/deploy/env
+
+# The deploy scripts talk to the engine through the Docker CLI.
+ENV CONTAINER_ENGINE=docker \
+    DOCKER_HOST=unix:///var/run/docker.sock \
+    CV_DEPLOY_STATE_DIR=/state \
+    HOME=/tmp \
+    NODE_ENV=production
+EXPOSE 8080
+CMD ["node", "src/server.ts"]

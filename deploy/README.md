@@ -6,10 +6,9 @@ Questa cartella trasforma un commit in una **versione** che si può installare (
 [ADR 0007](../docs/adr/0007-rilasci-e-ambienti.md).
 
 ```
- commit abc123…  ──deploy/build.sh──▶  immagini localhost/cv-generator-api:abc123def456
-                                                 localhost/cv-generator-web:abc123def456
+ commit abc123…  ──deploy/build.sh──▶  immagini localhost/cv-generator-{api,web,db,idp}:abc123def456
                                                               │
-                          deploy/stack.sh <env> up abc123def456
+        deploy/stack.sh <env> release abc123def456   (a mano, o dal server MCP deploy-<env>)
                                                               ▼
  ┌─ ambiente (progetto Compose cv-<env>, rete propria) ──────────────────────────────────┐
  │                                                                                        │
@@ -24,20 +23,25 @@ Questa cartella trasforma un commit in una **versione** che si può installare (
 
 | File | Ruolo |
 |---|---|
-| `build.sh` | Costruisce le immagini di un commit; la versione è lo SHA |
-| `stack.sh` | Avvia, ferma e ispeziona un ambiente |
+| `build.sh` | Costruisce le quattro immagini di un commit; la versione è lo SHA |
+| `stack.sh` | Rilascio, stato, rollback e cronologia di un ambiente: l'unica implementazione |
 | `smoke.sh` | Verifica dall'esterno che un ambiente risponda come deve |
 | `compose.yaml` | Lo stack di un ambiente: stesso file per tutti |
 | `env/<env>.env` | Ciò che distingue gli ambienti: nome, porta, opzioni. Nessun segreto |
 | `lib.sh` | Funzioni comuni agli script |
-| `../backend/Containerfile`, `../frontend/Containerfile` | Le due immagini |
+| `mcp/` | Server MCP di deploy, uno per ambiente: rilascio, stato e rollback come strumenti per l'agent ([guida](mcp/README.md)) |
+| `../backend/Containerfile`, `../frontend/Containerfile` | Immagini `api` e `web` |
+| `../infra/postgres/Containerfile`, `../infra/keycloak/Containerfile` | Immagini `db` (con lo script di init) e `idp` (con il realm) |
 
 ## Uso
 
 ```bash
 v=$(bash deploy/build.sh)               # immagini del commit corrente (HEAD); stampa la versione
-bash deploy/stack.sh dev up "$v"         # installa quella versione in dev
+bash deploy/stack.sh dev release "$v"    # installa quella versione in dev; stampa l'ID del rilascio
 bash deploy/smoke.sh dev "$v"            # verifica: tutte le righe devono essere PASS
+bash deploy/stack.sh dev status --wait   # dopo la finestra di osservazione: errori 5xx per endpoint
+bash deploy/stack.sh dev rollback        # torna all'ultima versione buona; stampa quella di nuovo attiva
+bash deploy/stack.sh dev history         # rilasci e rollback, dal più vecchio
 bash deploy/stack.sh dev version         # versione in esecuzione
 bash deploy/stack.sh dev ps              # container e stato di salute
 bash deploy/stack.sh dev logs api        # log di un servizio
@@ -47,7 +51,7 @@ bash deploy/stack.sh dev destroy         # ferma e cancella anche il database
 
 L'app di un ambiente si apre su `http://localhost:<porta>` e si entra con l'utente di prova
 `demo` / `demo-local-only-password` (dati fittizi). Per una versione precedente:
-`bash deploy/build.sh <commit>` e poi `up` con la versione stampata.
+`bash deploy/build.sh <commit>` e poi `release` con la versione stampata.
 
 | Ambiente | Porta | Dove gira | Swagger UI | Autonomia dell'agent (prossimi passi) |
 |---|---|---|---|---|
@@ -153,11 +157,31 @@ dati di prod.
 Il `compose.yaml` della radice del repository è un'altra cosa: avvia solo Postgres e Keycloak per
 lanciare l'app dall'IDE.
 
+**Anche la configurazione è nella versione.** Il realm di Keycloak e lo script che crea il database
+di Keycloak sono dentro le immagini `idp` e `db`, costruite dallo stesso commit. Il
+`deploy/compose.yaml` non monta niente dal checkout. Ne seguono due cose:
+- un rollback riporta anche la configurazione della versione precedente;
+- lo stack si può avviare da qualunque posto che parli con il motore dei container, per esempio dal
+  container del server MCP, che non ha il repository del PC.
+
 ### 7. Segreti fuori dal repository, diversi per ambiente
-Nel repository non c'è nessuna password di un ambiente. Al primo avvio `stack.sh` genera password
-casuali (`openssl rand`) in `~/.config/cv-generator-deploy/<env>.secrets`, con permessi `600`, e le
-passa a Compose. Se mancano, `compose.yaml` si rifiuta di partire (`${VAR:?…}`): non esistono
-password di default.
+Nel repository non c'è nessuna password di un ambiente. Lo stato di ogni ambiente sta in una cartella
+sua, fuori dal repository:
+
+```
+~/.config/cv-generator-deploy/
+├── dev/
+│   ├── secrets     password generate da stack.sh (openssl rand), permessi 600
+│   ├── history     cronologia di rilasci e rollback
+│   └── mcp-token   token del server MCP deploy-dev (deploy/mcp/start.sh)
+└── prod/ …
+```
+
+Al primo avvio `stack.sh` genera le password mancanti e le passa a Compose. Se mancano,
+`compose.yaml` si rifiuta di partire (`${VAR:?…}`): non esistono password di default. Il segreto del
+client `cv-synthetic` (traffico sintetico, vedi sotto) arriva al realm con un segnaposto
+`${CV_SYNTHETIC_CLIENT_SECRET}`, che Keycloak risolve all'import. Una cartella per ambiente permette
+di dare al server MCP di dev **solo** lo stato di dev.
 
 Attenzione: Postgres imposta la password **solo alla prima creazione del volume**. Se si cancella
 il file dei segreti, l'ambiente va ricreato con `destroy`.
@@ -173,12 +197,14 @@ all'applicazione:
 
 ### 9. Quando un deploy è "finito"
 Ogni servizio ha un **healthcheck**, e i `depends_on` con `service_healthy` impongono l'ordine:
-postgres → keycloak → api → web. `stack.sh up` usa `compose up --wait`: ritorna solo quando **tutti** i
-container sono sani, oppure fallisce. "Deploy completato" significa quindi "la nuova versione
-risponde", non "i container sono partiti". Lo strumento `release` del server MCP si appoggerà a questo.
+postgres → keycloak → api → web. `stack.sh release` usa `compose up --wait`: ritorna solo quando
+**tutti** i container sono sani, oppure fallisce. "Deploy completato" significa quindi "la nuova
+versione risponde", non "i container sono partiti". Lo strumento `release` del server MCP restituisce
+l'ID del rilascio solo a quel punto.
 
 Per l'API il controllo è `/actuator/health/readiness`, cioè "pronta a ricevere traffico", che è più
-dell'essere viva. Le immagini non contengono `curl`: il controllo apre la connessione con
+dell'essere viva. Si trova sulla porta di management `8081`, interna alla rete dell'ambiente (vedi
+la [guida MCP](mcp/README.md)). Le immagini non contengono `curl`: il controllo apre la connessione con
 `/dev/tcp` di bash. Va chiamato con `bash -c`, perché `/bin/sh` nell'immagine Ubuntu è dash e
 `/dev/tcp` non lo conosce; è stato il primo errore della prova.
 
@@ -197,7 +223,9 @@ Il job *Release images (build + staging deploy + smoke)* della CI, su ogni PR e 
 1. costruisce le immagini del commit;
 2. crea uno staging sul runner;
 3. esegue lo smoke test e il login end-to-end;
-4. distrugge tutto.
+4. avvia il server MCP `deploy-staging` e gli chiede `status` dalla rete della sandbox, come farebbe
+   l'agent;
+5. distrugge tutto.
 
 Lo staging non esiste tra un job e l'altro: ogni volta parte da zero, quindi non accumula stato
 né derive di configurazione.
@@ -210,9 +238,9 @@ né derive di configurazione.
   della nuova versione. Un rollback riporta il codice, **non** lo schema: le migrazioni devono quindi
   restare compatibili con la versione precedente (prima si aggiunge, si rimuove solo in un rilascio
   successivo, il modello *expand/contract*). Il rollback ne terrà conto.
-- **Configurazione dal checkout.** Il realm di Keycloak e lo script di inizializzazione di Postgres
-  sono letti dal repository, non dall'immagine. Keycloak importa il realm **solo sul database vuoto**:
-  dopo averlo modificato serve `destroy` e poi `up`.
+- **Il realm si importa solo su un database vuoto.** Una versione con un realm modificato non lo
+  applica a un ambiente che esiste già: serve `destroy` e poi `release`. In un sistema reale le
+  modifiche al realm passerebbero dall'API di amministrazione di Keycloak.
 - **Nessun registry.** Le immagini restano nel motore locale (Podman sul PC, Docker sul runner).
   Un registry (per esempio GHCR) servirà per condividerle tra macchine.
 - **Keycloak in `start-dev`** anche in prod: va bene per un ambiente simulato, non per uno reale
@@ -225,7 +253,7 @@ né derive di configurazione.
 4. Perché l'indirizzo di Keycloak nel frontend è relativo?
 5. Cosa succederebbe a nginx, senza `resolver`, dopo un rollback?
 6. Perché solo il container `web` pubblica una porta?
-7. Perché "`up` è terminato" significa che la versione funziona, e non solo che è partita?
+7. Perché "`release` è terminato" significa che la versione funziona, e non solo che è partita?
 8. Perché un rollback non annulla una migrazione del database?
 
 <details>
@@ -241,7 +269,7 @@ né derive di configurazione.
    fino al riavvio di nginx.
 6. Un solo punto d'ingresso: API, Keycloak e database restano sulla rete interna; meno superficie
    esposta e nessun CORS.
-7. Per `--wait` e gli healthcheck: `up` ritorna con successo solo quando tutti i servizi, nell'ordine
+7. Per `--wait` e gli healthcheck: `release` ritorna con successo solo quando tutti i servizi, nell'ordine
    delle dipendenze, risultano sani.
 8. Il rollback rimette le immagini precedenti; lo schema del database resta quello nuovo. Per questo
    le migrazioni devono essere compatibili con la versione precedente.
