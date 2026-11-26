@@ -1,12 +1,20 @@
 import type { AuthProviderProps } from "react-oidc-context";
 
+const configuredAuthority = import.meta.env.VITE_OIDC_AUTHORITY ?? "http://localhost:8180/realms/cv-generator";
+
 /**
  * OpenID Connect configuration: Authorization Code Flow with PKCE (S256, the
  * oidc-client-ts default) against the Keycloak realm. Values can be overridden
  * at build time with VITE_OIDC_AUTHORITY and VITE_OIDC_CLIENT_ID.
+ *
+ * A relative authority (e.g. "/realms/cv-generator", used by the container
+ * image) is resolved against the page origin: Keycloak sits behind the same
+ * entry point as the app, so one build works in every environment.
  */
 export const oidcConfig: AuthProviderProps = {
-  authority: import.meta.env.VITE_OIDC_AUTHORITY ?? "http://localhost:8180/realms/cv-generator",
+  authority: configuredAuthority.startsWith("/")
+    ? `${window.location.origin}${configuredAuthority}`
+    : configuredAuthority,
   client_id: import.meta.env.VITE_OIDC_CLIENT_ID ?? "cv-frontend",
   redirect_uri: `${window.location.origin}/`,
   post_logout_redirect_uri: `${window.location.origin}/`,

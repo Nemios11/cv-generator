@@ -1,0 +1,35 @@
+# Image of the web app: the static build of the frontend served by nginx, which
+# is also the single entry point of an environment (reverse proxy):
+#   /            the single-page app
+#   /api/        the API (container "api")
+#   /realms/, /resources/   Keycloak login pages (container "keycloak")
+# Everything is same-origin, so the same image works in every environment:
+# nothing environment-specific is compiled into it.
+#
+# Built by deploy/build.sh from the files of one commit (git archive).
+
+# --- 1. Build -----------------------------------------------------------------
+FROM docker.io/library/node:22-bookworm-slim AS build
+WORKDIR /src
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY . .
+# Relative authority: resolved against the page origin at run time
+# (see src/auth/config.ts), so it is right in dev, staging and prod alike.
+ENV VITE_OIDC_AUTHORITY=/realms/cv-generator
+RUN npm run build
+
+# --- 2. Runtime ---------------------------------------------------------------
+FROM docker.io/nginxinc/nginx-unprivileged:1.29-alpine
+# The version label (org.opencontainers.image.revision) is set by
+# deploy/build.sh with --label, not here: a LABEL built from an ARG can be
+# reused from the build cache with the value of an older build.
+LABEL org.opencontainers.image.title="cv-generator-web" \
+      org.opencontainers.image.source="https://github.com/Nemios11/cv-generator"
+# The entrypoint writes the container's DNS resolver into the template
+# (${NGINX_LOCAL_RESOLVERS}): nginx re-resolves "api" and "keycloak" at run
+# time, so a redeployed container with a new IP is found without a restart.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=build /src/dist /usr/share/nginx/html
+EXPOSE 8080

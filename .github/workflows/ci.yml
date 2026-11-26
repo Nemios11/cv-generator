@@ -76,6 +76,45 @@ jobs:
           CONTAINER_ENGINE: docker
         run: bash sandbox/agent.sh --build --selftest --no-github
 
+  release:
+    name: Release images (build + staging deploy + smoke)
+    runs-on: ubuntu-latest
+    env:
+      CONTAINER_ENGINE: docker
+      CV_DEPLOY_SECRETS_DIR: ${{ runner.temp }}/deploy-secrets
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the images of this commit
+        id: build
+        run: echo "version=$(bash deploy/build.sh)" >> "$GITHUB_OUTPUT"
+      - name: Deploy to an ephemeral staging on the runner
+        run: bash deploy/stack.sh staging up "${{ steps.build.outputs.version }}"
+      - name: Smoke test
+        run: bash deploy/smoke.sh staging "${{ steps.build.outputs.version }}"
+      - name: Login e2e against staging (PKCE through the entry point)
+        working-directory: frontend
+        env:
+          CI: "true"
+          E2E_AUTH: "1"
+          E2E_BASE_URL: http://localhost:8380
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test tests/auth.spec.ts
+      - name: Logs on failure
+        if: failure()
+        run: bash deploy/stack.sh staging logs
+      - name: Tear down
+        if: always()
+        run: bash deploy/stack.sh staging destroy
+
   stack:
     name: Full stack (compose + API + login e2e)
     runs-on: ubuntu-latest

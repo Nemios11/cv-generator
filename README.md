@@ -17,6 +17,7 @@ Come è costruita e come si avvia in locale: [docs/architettura.md](docs/archite
 | `frontend/` | React 19 + TypeScript + Vite (prototipo evoluto) |
 | `backend/` | Maven multi-modulo, Java 25, Spring Boot 4.2 (`cv-domain`, `cv-app`) |
 | `infra/` | Postgres e Keycloak per lo sviluppo locale |
+| `deploy/` | Rilasci: immagini versionate per commit, ambienti dev/staging/prod ([guida](deploy/README.md)) |
 | `sandbox/` | Sandbox dei job degli agent: container, policy di rete, token brevi ([guida](sandbox/README.md)) |
 | `docs/adr/` | Decisioni architetturali |
 | `local/` | **Esclusa da git:** dati personali e pattern privati, solo sulla propria macchina |
@@ -56,6 +57,20 @@ bash scripts/check-private-data.sh                        # controllo dati perso
 La CI (`.github/workflows/ci.yml`) esegue tutti questi controlli più uno smoke test dello stack:
 avvia Compose, verifica Keycloak e controlla che `/api/me` rifiuti le richieste senza token valido.
 Il job `sandbox` verifica la policy del workflow degli agent ed esegue l'autotest della sandbox.
+Il job `release` costruisce le immagini del commit, le installa in uno staging effimero sul runner e
+lo verifica con lo smoke test e il login end-to-end.
+
+## Rilasci e ambienti
+
+Ogni commit diventa una versione (lo SHA) con due immagini, installabile negli ambienti `dev`,
+`staging` e `prod` ([ADR 0007](docs/adr/0007-rilasci-e-ambienti.md)).
+
+```bash
+v=$(bash deploy/build.sh)            # immagini del commit corrente
+bash deploy/stack.sh dev up "$v"      # http://localhost:8280
+bash deploy/smoke.sh dev "$v"
+```
+Concetti e comandi in [deploy/README.md](deploy/README.md).
 
 ## Agent in sandbox
 

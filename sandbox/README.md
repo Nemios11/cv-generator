@@ -110,5 +110,5 @@ L'agent lavora su un branch `agent/run-<id>` e apre una pull request; il merge r
 ## Limiti noti
 - Nella sandbox i test d'integrazione con Testcontainers vengono saltati: l'agent non ha accesso al
   motore dei container, di proposito. Girano in CI.
-- Repository privato su GitHub Free: niente protezione dei branch, quindi il divieto di push su `main`
-  è solo nelle istruzioni del job (vedi ADR 0006).
+- Il token dell'App ha `contents: write`, ma non può scrivere su `main`: il ruleset del repository
+  accetta solo pull request con la CI verde, senza eccezioni (vedi ADR 0006, Conseguenze).

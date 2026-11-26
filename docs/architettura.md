@@ -283,6 +283,12 @@ rete interna; l'unica uscita è un proxy con allowlist. Il token GitHub dura un'
 questo repository. Dettagli in [sandbox/README.md](../sandbox/README.md) e nell'[ADR 0006](adr/0006-sandbox-agent.md).
 Nella sandbox `./mvnw verify` salta i test Testcontainers, perché l'agent non ha accesso al motore dei container.
 
+### Ambienti deployati (dev, staging, prod)
+Oltre all'avvio dall'IDE, l'applicazione si può installare come **versione** (lo SHA del commit) in un
+ambiente completo: Postgres, Keycloak, API e nginx in container, dietro un solo punto d'ingresso
+(`http://localhost:8280` per dev). Dettagli in [deploy/README.md](../deploy/README.md) e
+nell'[ADR 0007](adr/0007-rilasci-e-ambienti.md).
+
 ---
 
 ## Flusso di autenticazione

@@ -1,0 +1,30 @@
+# Image of the API (Spring Boot). Built by deploy/build.sh from the files of
+# one commit (git archive), so the image is exactly that commit: no
+# uncommitted changes and no git-ignored files (local/, .env) can enter it.
+#
+# Two stages: the JDK and Maven exist only in the first one; the image that
+# runs contains the JRE and the jar, nothing else.
+
+# --- 1. Build -----------------------------------------------------------------
+FROM docker.io/library/eclipse-temurin:25-jdk-noble AS build
+WORKDIR /src
+COPY . .
+# Tests are not run here: the same commit has already passed them in CI
+# (job "Backend"). The Maven cache is a build cache, it never ends up in the image.
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw -B -ntp -pl cv-app -am package -DskipTests \
+ && cp cv-app/target/cv-app-*.jar /app.jar
+
+# --- 2. Runtime ---------------------------------------------------------------
+FROM docker.io/library/eclipse-temurin:25-jre-noble
+# The version label (org.opencontainers.image.revision) is set by
+# deploy/build.sh with --label, not here: a LABEL built from an ARG can be
+# reused from the build cache with the value of an older build.
+LABEL org.opencontainers.image.title="cv-generator-api" \
+      org.opencontainers.image.source="https://github.com/Nemios11/cv-generator"
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+COPY --from=build /app.jar /opt/app/app.jar
+# Non-root, numeric uid: no account is needed in the image.
+USER 10001:10001
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/opt/app/app.jar"]

@@ -126,10 +126,12 @@ token. Il workflow `agent.yml` esegue l'autotest con il token reale prima di ogn
   tutti a ambito limitato.
 
   Per arrivare a credenziali brevi anche qui servirebbe una chiave API con `apiKeyHelper` o un gateway.
-- Con un repository privato su piano GitHub Free le regole di protezione dei branch non sono
-  disponibili. Quindi `contents: write` permetterebbe un push su `main`. Le istruzioni del job lo
-  vietano e ogni modifica passa da una pull request, ma il vincolo tecnico richiederebbe GitHub Pro
-  o un repository pubblico.
+- ~~Con un repository privato su piano GitHub Free le regole di protezione dei branch non sono
+  disponibili, quindi `contents: write` permetterebbe un push su `main`.~~
+  **Aggiornamento 2026-11-25:** il repository è pubblico e `main` è protetto da un ruleset senza
+  eccezioni: si scrive solo con una pull request i cui controlli della CI sono verdi, e push forzato
+  e cancellazione sono vietati. Il vincolo ora è tecnico: anche con `contents: write` il token
+  dell'App non può scrivere su `main`. I branch `m*` hanno un ruleset che ne vieta la cancellazione.
 - L'agent vede solo ciò che è già su GitHub: le modifiche locali non ancora pushate non gli arrivano.
   È lo stesso modello della CI.
 - Le cache di Maven e npm (artefatti pubblici) persistono in volumi Podman in locale; in CI no.

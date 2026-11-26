@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 /**
  * End-to-end login against the real stack: Keycloak (compose.yaml), the backend
  * on :8080 and this frontend. Runs only when E2E_AUTH=1 (CI "stack" job).
+ * With E2E_BASE_URL it runs against a deployed environment instead
+ * (deploy/README.md), where Keycloak is behind the same origin as the app.
  * Uses the fictional development user of the local realm.
  */
 test.skip(!process.env.E2E_AUTH, 'requires the full stack (set E2E_AUTH=1)');
@@ -13,8 +15,8 @@ test('sign in with PKCE, create, read and delete the own profile', async ({ page
   await page.goto('/');
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  // Keycloak login page.
-  await expect(page).toHaveURL(/localhost:8180\/realms\/cv-generator\/protocol\/openid-connect\/auth/);
+  // Keycloak login page: :8180 in local development, same origin when deployed.
+  await expect(page).toHaveURL(/localhost:(8180|\d+)\/realms\/cv-generator\/protocol\/openid-connect\/auth/);
   await page.locator('#username').fill(USER.username);
   await page.locator('#password').fill(USER.password);
   await page.locator('#kc-login').click();
