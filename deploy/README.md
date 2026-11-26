@@ -62,6 +62,14 @@ L'app di un ambiente si apre su `http://localhost:<porta>` e si entra con l'uten
 In locale servono Podman (macchina `cv-generator`) e `docker-compose`, che `podman compose` usa
 dietro le quinte. In CI si usa Docker (`CONTAINER_ENGINE=docker`).
 
+**Su Windows gli script vanno lanciati da Git Bash.** In PowerShell il comando `bash` è quello di
+WSL (`C:\Windows\System32\bash.exe`), che esegue lo script *dentro* la distribuzione WSL predefinita,
+qui una macchina Podman: lì non ci sono `openssl` né l'accesso a Podman, e gli script si fermano con
+un messaggio. Da PowerShell si usa quindi il bash di Git:
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" deploy/stack.sh dev down
+```
+
 ---
 
 ## I concetti, uno per uno

@@ -11,6 +11,17 @@ release_components=(api web db idp)
 die() { echo "deploy: $*" >&2; exit 1; }
 log() { echo "deploy: $*" >&2; }
 
+# On Windows, "bash" typed in PowerShell is WSL's bash.exe, which runs inside
+# the default WSL distribution: here a Podman machine, the wrong place (no
+# openssl, no access to the Podman user socket). The scripts are meant for
+# Git Bash on Windows (or a plain Linux shell, as in CI).
+if [[ "${WSL_DISTRO_NAME:-}" == podman-* ]]; then
+  die "running inside the WSL distribution '$WSL_DISTRO_NAME' (bash from PowerShell is WSL).
+Use Git Bash: open a Git Bash terminal, or from PowerShell run
+  & \"C:\\Program Files\\Git\\bin\\bash.exe\" deploy/$(basename "$0") ..."
+fi
+command -v openssl >/dev/null 2>&1 || die "openssl not found (on Windows, run the scripts from Git Bash)"
+
 # Git for Windows: native programs (podman, docker-compose) want Windows paths;
 # keep MSYS from rewriting container paths such as /tmp.
 if command -v cygpath >/dev/null 2>&1; then
